@@ -81,6 +81,20 @@
       cursor: pointer;
       display: none;
     }
+    .btn-search {
+      width: 100%;
+      padding: 16px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 16px;
+      transition: background 0.15s;
+    }
+    .btn-search:hover { background: #1d4ed8; }
 
     .search-results {
       width: 100%;
@@ -227,10 +241,17 @@
       flex-direction: column;
       align-items: center;
       text-align: center;
-      gap: 20px;
+      width: 100%;
+      max-width: 480px;
+      gap: 16px;
+    }
+    .success-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
     }
     .success-icon {
-      font-size: 6rem;
+      font-size: 3rem;
       animation: popIn 0.4s ease-out;
     }
     @keyframes popIn {
@@ -239,22 +260,33 @@
       100% { transform: scale(1); opacity: 1; }
     }
     .success-title {
-      font-size: 2.5rem;
+      font-size: 2rem;
       font-weight: 800;
       color: #34d399;
     }
-    .success-name {
-      font-size: 1.4rem;
-      color: #e2e8f0;
+    .success-info-card {
+      width: 100%;
+      background: #1e293b;
+      border: 2px solid #34d399;
+      border-radius: 16px;
+      padding: 20px 24px;
+      text-align: left;
     }
-    .success-table {
-      font-size: 1.1rem;
+    .success-info-card .qr-greeting { font-size: 0.95rem; color: #94a3b8; margin-bottom: 4px; }
+    .success-info-card .qr-name { font-size: 1.6rem; font-weight: 700; color: #e2e8f0; margin-bottom: 16px; }
+    .btn-home {
+      width: 100%;
+      padding: 14px;
+      background: #1e293b;
       color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
     }
-    .success-countdown {
-      font-size: 0.85rem;
-      color: #475569;
-    }
+    .btn-home:hover { background: #334155; color: #e2e8f0; }
 
     /* ── 初始化失敗提示 ── */
     #errorScreen {
@@ -272,7 +304,7 @@
 <!-- 設定 -->
 <script>
   const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyq4Wo_ZICrWK1GIglnVVduw5cJFaXL5bEd6-Ghm5We7alzlmpSOEVamhLrNYMnrNhC/exec";
-  const EVENT_NAME = "2026 蘇澳活動";
+  const EVENT_NAME = "2026蘇澳港灣漁悅季";
 </script>
 
 <!-- 搜尋畫面 -->
@@ -283,9 +315,12 @@
     <p>請輸入您的姓名進行報到</p>
   </header>
   <div class="search-wrap">
-    <input type="text" id="nameInput" placeholder="輸入姓名…" autocomplete="off" oninput="onInput(this.value)">
+    <input type="text" id="nameInput" placeholder="輸入姓名…" autocomplete="off"
+      oninput="onTyping(this.value)"
+      onkeydown="if(event.key==='Enter') doSearch()">
     <button class="clear" id="clearBtn" onclick="clearInput()">✕</button>
   </div>
+  <button class="btn-search" onclick="doSearch()">搜尋</button>
   <div class="search-results" id="searchResults">
     <!-- 搜尋結果 -->
   </div>
@@ -314,11 +349,16 @@
 
 <!-- 通行成功畫面 -->
 <div id="successScreen">
-  <div class="success-icon">✅</div>
-  <div class="success-title">歡迎入場！</div>
-  <div class="success-name" id="successName"></div>
-  <div class="success-table" id="successTable"></div>
-  <div class="success-countdown" id="successCountdown"></div>
+  <div class="success-header">
+    <div class="success-icon">✅</div>
+    <div class="success-title">歡迎入場！</div>
+  </div>
+  <div class="success-info-card">
+    <div class="qr-greeting">您好，</div>
+    <div class="qr-name" id="successName"></div>
+    <div id="successInfoRows"></div>
+  </div>
+  <button class="btn-home" onclick="backToSearch()">↩ 回到首頁（幫其他人報到）</button>
 </div>
 
 <!-- 錯誤畫面 -->
@@ -355,14 +395,18 @@
   }
 
   // ---------- 搜尋 ----------
-  function onInput(q) {
-    const clearBtn = document.getElementById("clearBtn");
-    clearBtn.style.display = q ? "block" : "none";
-    q = q.trim();
+  function onTyping(q) {
+    // 只控制清除按鈕顯示，不顯示結果
+    document.getElementById("clearBtn").style.display = q ? "block" : "none";
+    if (!q.trim()) document.getElementById("searchResults").innerHTML = "";
+  }
+
+  function doSearch() {
+    const q = document.getElementById("nameInput").value.trim();
     const container = document.getElementById("searchResults");
     if (!q) { container.innerHTML = ""; return; }
 
-    const matches = attendees.filter(a => a.name.includes(q));
+    const matches = attendees.filter(a => a.name === q);
     if (matches.length === 0) {
       container.innerHTML = '<div class="no-result">找不到此姓名，請確認後重試</div>';
       return;
@@ -383,7 +427,7 @@
 
   function clearInput() {
     document.getElementById("nameInput").value = "";
-    onInput("");
+    onTyping("");
     document.getElementById("nameInput").focus();
   }
 
@@ -438,22 +482,18 @@
 
   // ---------- 通行成功 ----------
   function showSuccess(a) {
-    document.getElementById("successName").textContent = `${a.name} ${a.title}，您好！`;
-    document.getElementById("successTable").textContent = `請前往 ${a.table} 桌就座`;
+    document.getElementById("successName").textContent = `${a.name} ${a.title}`;
+    document.getElementById("successInfoRows").innerHTML = `
+      <div class="info-row"><span class="info-label">方案</span><span class="info-value">${a.plan}</span></div>
+      <div class="info-row"><span class="info-label">身分</span><span class="info-value">${a.identity}</span></div>
+      <div class="info-row"><span class="info-label">序號</span><span class="info-value">${a.seq} 號</span></div>
+      <div class="info-row">
+        <span class="info-label">桌次</span>
+        <span class="info-value info-table-highlight">${a.table} 桌</span>
+      </div>
+      ${a.note ? `<div class="info-row"><span class="info-label">備註</span><span class="info-value">${a.note}</span></div>` : ""}
+    `;
     showScreen("successScreen");
-
-    let sec = 8;
-    const countdown = document.getElementById("successCountdown");
-    countdown.textContent = `${sec} 秒後自動回到首頁`;
-    const timer = setInterval(() => {
-      sec--;
-      if (sec <= 0) {
-        clearInterval(timer);
-        backToSearch();
-      } else {
-        countdown.textContent = `${sec} 秒後自動回到首頁`;
-      }
-    }, 1000);
   }
 
   // ---------- 返回搜尋 ----------
