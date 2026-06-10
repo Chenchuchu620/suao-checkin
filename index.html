@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>賓客報到</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+      background: #0f1e2e;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+      color: white;
+      overflow: hidden;
+    }
+
+    /* ── 搜尋畫面 ── */
+    #searchScreen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 560px;
+      gap: 0;
+    }
+    #searchScreen header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    #searchScreen header img {
+      height: 64px;
+      margin-bottom: 12px;
+      filter: brightness(0) invert(1);
+    }
+    #searchScreen header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    #searchScreen header p {
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-top: 6px;
+    }
+
+    .search-wrap {
+      width: 100%;
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 18px 56px 18px 22px;
+      font-size: 1.3rem;
+      border: 2px solid #334155;
+      border-radius: 14px;
+      background: #1e293b;
+      color: white;
+      outline: none;
+      transition: border-color 0.2s;
+      caret-color: #3b82f6;
+    }
+    .search-wrap input::placeholder { color: #475569; }
+    .search-wrap input:focus { border-color: #3b82f6; }
+    .search-wrap .clear {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #475569;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: none;
+    }
+
+    .search-results {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .result-item {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px 20px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .result-item:hover, .result-item:active {
+      border-color: #3b82f6;
+      background: #1e3a5f;
+    }
+    .result-item.done {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .result-name { font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }
+    .result-meta { font-size: 0.82rem; color: #64748b; margin-top: 3px; }
+    .result-badge {
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge-pending { background: #1d4ed8; color: #bfdbfe; }
+    .badge-done    { background: #064e3b; color: #6ee7b7; }
+
+    .no-result {
+      text-align: center;
+      color: #475569;
+      padding: 32px;
+      font-size: 0.95rem;
+    }
+
+    /* ── QR 等待畫面 ── */
+    #qrScreen {
+      display: none;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      max-width: 760px;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+
+    /* 左側：賓客資料卡 */
+    .qr-info-card {
+      flex: 1;
+      min-width: 260px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 24px;
+      text-align: left;
+    }
+    .qr-greeting {
+      font-size: 1.05rem;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .qr-name {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin-bottom: 20px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #1e3a5f;
+      font-size: 0.95rem;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #64748b; }
+    .info-value { color: #e2e8f0; font-weight: 600; }
+    .info-table-highlight {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #34d399;
+    }
+
+    /* 右側：QR Code */
+    .qr-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    #qrCanvas {
+      border-radius: 16px;
+      background: white;
+      padding: 14px;
+      box-shadow: 0 0 0 4px #3b82f6;
+    }
+    .waiting-label {
+      font-size: 0.88rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+    .dot-anim span {
+      display: inline-block;
+      width: 7px; height: 7px;
+      background: #3b82f6;
+      border-radius: 50%;
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+    .dot-anim span:nth-child(2) { animation-delay: 0.2s; }
+    .dot-anim span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40%            { transform: scale(1);   opacity: 1; }
+    }
+    .btn-back-search {
+      background: none;
+      border: 1px solid #334155;
+      color: #64748b;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-back-search:hover { border-color: #475569; color: #94a3b8; }
+
+    /* ── 通行成功畫面 ── */
+    #successScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 20px;
+    }
+    .success-icon {
+      font-size: 6rem;
+      animation: popIn 0.4s ease-out;
+    }
+    @keyframes popIn {
+      0%   { transform: scale(0.3); opacity: 0; }
+      70%  { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .success-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #34d399;
+    }
+    .success-name {
+      font-size: 1.4rem;
+      color: #e2e8f0;
+    }
+    .success-table {
+      font-size: 1.1rem;
+      color: #94a3b8;
+    }
+    .success-countdown {
+      font-size: 0.85rem;
+      color: #475569;
+    }
+
+    /* ── 初始化失敗提示 ── */
+    #errorScreen {
+      display: none;
+      text-align: center;
+      color: #f87171;
+      gap: 12px;
+      flex-direction: column;
+    }
+    #errorScreen p { font-size: 0.9rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<!-- 設定 -->
+<script>
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyq4Wo_ZICrWK1GIglnVVduw5cJFaXL5bEd6-Ghm5We7alzlmpSOEVamhLrNYMnrNhC/exec";
+  const EVENT_NAME = "2026 蘇澳活動";
+</script>
+
+<!-- 搜尋畫面 -->
+<div id="searchScreen">
+  <header>
+    <img src="LOGOup.png" alt="Logo" onerror="this.style.display='none'">
+    <h1 id="eventTitle">歡迎蒞臨</h1>
+    <p>請輸入您的姓名進行報到</p>
+  </header>
+  <div class="search-wrap">
+    <input type="text" id="nameInput" placeholder="輸入姓名…" autocomplete="off" oninput="onInput(this.value)">
+    <button class="clear" id="clearBtn" onclick="clearInput()">✕</button>
+  </div>
+  <div class="search-results" id="searchResults">
+    <!-- 搜尋結果 -->
+  </div>
+</div>
+
+<!-- QR Code 等待畫面 -->
+<div id="qrScreen">
+  <!-- 左側：賓客資料 -->
+  <div class="qr-info-card">
+    <div class="qr-greeting">您好，</div>
+    <div class="qr-name" id="qrName"></div>
+    <div id="qrInfoRows">
+      <!-- 動態插入 -->
+    </div>
+  </div>
+  <!-- 右側：QR Code -->
+  <div class="qr-right">
+    <canvas id="qrCanvas"></canvas>
+    <div class="waiting-label">
+      等待工作人員掃描確認
+      <span class="dot-anim"><span></span><span></span><span></span></span>
+    </div>
+    <button class="btn-back-search" onclick="backToSearch()">← 重新搜尋</button>
+  </div>
+</div>
+
+<!-- 通行成功畫面 -->
+<div id="successScreen">
+  <div class="success-icon">✅</div>
+  <div class="success-title">歡迎入場！</div>
+  <div class="success-name" id="successName"></div>
+  <div class="success-table" id="successTable"></div>
+  <div class="success-countdown" id="successCountdown"></div>
+</div>
+
+<!-- 錯誤畫面 -->
+<div id="errorScreen">
+  <div style="font-size:2rem">⚠️</div>
+  <div id="errorMsg">載入失敗</div>
+  <p>請確認 APPS_SCRIPT_URL 設定是否正確</p>
+  <button class="btn-back-search" onclick="location.reload()">重新載入</button>
+</div>
+
+<script>
+  let attendees = [];
+  let pollTimer = null;
+  let currentAttendee = null;
+
+  document.getElementById("eventTitle").textContent = "歡迎蒞臨 " + EVENT_NAME;
+
+  // ---------- 初始化 ----------
+  async function init() {
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+      showScreen("errorScreen");
+      document.getElementById("errorMsg").textContent = "尚未設定 Apps Script 網址";
+      return;
+    }
+    try {
+      const res = await fetch(APPS_SCRIPT_URL + "?action=getAll&t=" + Date.now());
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      attendees = data.attendees || [];
+    } catch (e) {
+      showScreen("errorScreen");
+      document.getElementById("errorMsg").textContent = "載入失敗：" + e.message;
+    }
+  }
+
+  // ---------- 搜尋 ----------
+  function onInput(q) {
+    const clearBtn = document.getElementById("clearBtn");
+    clearBtn.style.display = q ? "block" : "none";
+    q = q.trim();
+    const container = document.getElementById("searchResults");
+    if (!q) { container.innerHTML = ""; return; }
+
+    const matches = attendees.filter(a => a.name.includes(q));
+    if (matches.length === 0) {
+      container.innerHTML = '<div class="no-result">找不到此姓名，請確認後重試</div>';
+      return;
+    }
+    container.innerHTML = matches.map(a => `
+      <div class="result-item ${a.checkedIn ? 'done' : ''}"
+           onclick="${a.checkedIn ? '' : 'selectAttendee(' + a.rowIndex + ')'}">
+        <div>
+          <div class="result-name">${a.name} ${a.title}</div>
+          <div class="result-meta">桌次：${a.table} 桌 ／ 序號：${a.seq} 號</div>
+        </div>
+        <div class="card-badge ${a.checkedIn ? 'badge-done' : 'badge-pending'}">
+          ${a.checkedIn ? '已報到' : '點擊報到'}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function clearInput() {
+    document.getElementById("nameInput").value = "";
+    onInput("");
+    document.getElementById("nameInput").focus();
+  }
+
+  // ---------- 選擇賓客 → 顯示 QR ----------
+  async function selectAttendee(rowIndex) {
+    const a = attendees.find(x => x.rowIndex === rowIndex);
+    if (!a || a.checkedIn) return;
+    currentAttendee = a;
+
+    document.getElementById("qrName").textContent = `${a.name} ${a.title}`;
+    document.getElementById("qrInfoRows").innerHTML = `
+      <div class="info-row"><span class="info-label">方案</span><span class="info-value">${a.plan}</span></div>
+      <div class="info-row"><span class="info-label">身分</span><span class="info-value">${a.identity}</span></div>
+      <div class="info-row"><span class="info-label">序號</span><span class="info-value">${a.seq} 號</span></div>
+      <div class="info-row">
+        <span class="info-label">桌次</span>
+        <span class="info-value info-table-highlight">${a.table} 桌</span>
+      </div>
+      ${a.note ? `<div class="info-row"><span class="info-label">備註</span><span class="info-value">${a.note}</span></div>` : ""}
+    `;
+
+    // 產生 QR Code（內容為 rowIndex）
+    await QRCode.toCanvas(document.getElementById("qrCanvas"), String(rowIndex), {
+      width: 240,
+      margin: 1,
+      color: { dark: "#000000", light: "#ffffff" }
+    });
+
+    showScreen("qrScreen");
+    startPolling(rowIndex, a);
+  }
+
+  // ---------- 輪詢等待確認 ----------
+  function startPolling(rowIndex, a) {
+    clearTimeout(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `${APPS_SCRIPT_URL}?action=checkStatus&rowIndex=${rowIndex}&t=${Date.now()}`
+        );
+        const data = await res.json();
+        if (data.checkedIn) {
+          clearInterval(pollTimer);
+          // 更新本地狀態
+          const local = attendees.find(x => x.rowIndex === rowIndex);
+          if (local) local.checkedIn = true;
+          showSuccess(a);
+        }
+      } catch (_) { /* 靜默忽略，繼續輪詢 */ }
+    }, 2000);
+  }
+
+  // ---------- 通行成功 ----------
+  function showSuccess(a) {
+    document.getElementById("successName").textContent = `${a.name} ${a.title}，您好！`;
+    document.getElementById("successTable").textContent = `請前往 ${a.table} 桌就座`;
+    showScreen("successScreen");
+
+    let sec = 8;
+    const countdown = document.getElementById("successCountdown");
+    countdown.textContent = `${sec} 秒後自動回到首頁`;
+    const timer = setInterval(() => {
+      sec--;
+      if (sec <= 0) {
+        clearInterval(timer);
+        backToSearch();
+      } else {
+        countdown.textContent = `${sec} 秒後自動回到首頁`;
+      }
+    }, 1000);
+  }
+
+  // ---------- 返回搜尋 ----------
+  function backToSearch() {
+    clearInterval(pollTimer);
+    currentAttendee = null;
+    clearInput();
+    showScreen("searchScreen");
+  }
+
+  function showScreen(id) {
+    ["searchScreen", "qrScreen", "successScreen", "errorScreen"].forEach(s => {
+      const el = document.getElementById(s);
+      el.style.display = (s === id) ? "flex" : "none";
+    });
+  }
+
+  init();
+</script>
+</body>
+</html>

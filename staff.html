@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>工作人員掃描</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+      background: #0f1e2e;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: white;
+      padding: 0;
+    }
+
+    header {
+      width: 100%;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 1.1rem; color: #e2e8f0; }
+    .stat-pill {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 4px 12px;
+    }
+    .stat-pill strong { color: #34d399; }
+
+    /* 掃描器框 */
+    .scanner-container {
+      width: 100%;
+      max-width: 480px;
+      position: relative;
+      margin: 20px auto 0;
+      padding: 0 16px;
+    }
+    #reader {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid #334155;
+    }
+    /* 覆蓋 html5-qrcode 預設樣式 */
+    #reader video { border-radius: 14px !important; }
+    #reader__scan_region { background: transparent !important; }
+    #reader__dashboard { display: none !important; }
+
+    .scan-hint {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: #475569;
+    }
+
+    /* 結果彈窗 */
+    .result-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+      display: none;
+    }
+    .result-card {
+      background: #1e293b;
+      border-radius: 20px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+      border: 2px solid #334155;
+    }
+    .result-card.success { border-color: #34d399; }
+    .result-card.error   { border-color: #f87171; }
+    .result-card.already { border-color: #fbbf24; }
+
+    .result-icon { font-size: 3.5rem; margin-bottom: 8px; }
+    .result-status { font-size: 1.5rem; font-weight: 700; margin-bottom: 14px; }
+    .result-status.success { color: #34d399; }
+    .result-status.error   { color: #f87171; }
+    .result-status.already { color: #fbbf24; }
+
+    .result-name { font-size: 1.3rem; font-weight: 600; color: #e2e8f0; margin-bottom: 6px; }
+    .result-detail {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      line-height: 1.8;
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 12px;
+      margin: 10px 0 18px;
+      text-align: left;
+    }
+
+    .btn-next {
+      width: 100%;
+      padding: 12px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-next:hover { background: #1d4ed8; }
+
+    /* 初始化中 */
+    .init-msg {
+      margin-top: 40px;
+      text-align: center;
+      color: #475569;
+      font-size: 0.9rem;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 4px solid #334155;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 最近掃描記錄 */
+    .log-section {
+      width: 100%;
+      max-width: 480px;
+      padding: 0 16px;
+      margin-top: 20px;
+    }
+    .log-title {
+      font-size: 0.8rem;
+      color: #475569;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .log-item {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 8px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+    .log-name { color: #e2e8f0; }
+    .log-time { color: #475569; font-size: 0.75rem; }
+    .log-dot-ok  { width: 8px; height: 8px; border-radius: 50%; background: #34d399; }
+    .log-dot-dup { width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; }
+  </style>
+</head>
+<body>
+
+<script>
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyq4Wo_ZICrWK1GIglnVVduw5cJFaXL5bEd6-Ghm5We7alzlmpSOEVamhLrNYMnrNhC/exec";
+</script>
+
+<header>
+  <h1>工作人員掃描報到</h1>
+  <div class="stat-pill">已報到 <strong id="statDone">-</strong> / <span id="statTotal">-</span></div>
+</header>
+
+<div class="scanner-container">
+  <div id="reader"></div>
+  <div class="scan-hint" id="scanHint">對準賓客螢幕上的 QR Code</div>
+  <div class="init-msg" id="initMsg">
+    <div class="spinner"></div>
+    啟動相機中…
+  </div>
+</div>
+
+<div class="log-section">
+  <div class="log-title">最近掃描記錄</div>
+  <div class="log-list" id="logList"></div>
+</div>
+
+<!-- 結果彈窗 -->
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card" id="resultCard">
+    <div class="result-icon" id="resultIcon"></div>
+    <div class="result-status" id="resultStatus"></div>
+    <div class="result-name" id="resultName"></div>
+    <div class="result-detail" id="resultDetail"></div>
+    <button class="btn-next" onclick="closeResult()">繼續掃描</button>
+  </div>
+</div>
+
+<script>
+  let scanner = null;
+  let isProcessing = false;
+  let attendeeMap = {};
+  let checkedCount = 0;
+  let totalCount = 0;
+  const scanLog = [];
+
+  // ---------- 初始化 ----------
+  async function init() {
+    // 載入賓客資料
+    try {
+      const res = await fetch(APPS_SCRIPT_URL + "?action=getAll&t=" + Date.now());
+      const data = await res.json();
+      const list = data.attendees || [];
+      list.forEach(a => { attendeeMap[a.rowIndex] = a; });
+      totalCount = list.length;
+      checkedCount = list.filter(a => a.checkedIn).length;
+      updateStat();
+    } catch (_) { /* 繼續啟動相機，不阻擋掃描 */ }
+
+    startScanner();
+  }
+
+  function updateStat() {
+    document.getElementById("statDone").textContent = checkedCount;
+    document.getElementById("statTotal").textContent = totalCount;
+  }
+
+  // ---------- 啟動掃描器 ----------
+  function startScanner() {
+    document.getElementById("initMsg").style.display = "none";
+    document.getElementById("reader").style.display = "block";
+
+    scanner = new Html5Qrcode("reader");
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      onScanSuccess,
+      () => {}
+    ).catch(err => {
+      document.getElementById("scanHint").textContent = "⚠️ 無法啟動相機：" + err;
+    });
+  }
+
+  // ---------- 掃描成功 ----------
+  async function onScanSuccess(rawValue) {
+    if (isProcessing) return;
+    const rowIndex = parseInt(rawValue, 10);
+    if (!rowIndex || isNaN(rowIndex)) return;
+
+    isProcessing = true;
+
+    try {
+      const url = `${APPS_SCRIPT_URL}?action=checkIn&rowIndex=${rowIndex}&t=${Date.now()}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      const attendee = attendeeMap[rowIndex];
+      const name = attendee ? `${attendee.name} ${attendee.title}` : `序號 ${rowIndex}`;
+      const detail = attendee
+        ? `方案：${attendee.plan}\n身分：${attendee.identity}\n序號：${attendee.seq} 號　桌次：${attendee.table} 桌`
+        : "";
+
+      if (data.alreadyDone) {
+        showResult("already", "⚠️", "重複報到", name, detail + "\n（此賓客已於先前報到）");
+        addLog(name, "dup");
+      } else if (data.success) {
+        if (attendee) { attendee.checkedIn = true; checkedCount++; updateStat(); }
+        showResult("success", "✅", "報到成功", name, detail);
+        addLog(name, "ok");
+      } else {
+        showResult("error", "❌", "報到失敗", name, data.error || "請重試");
+      }
+    } catch (e) {
+      showResult("error", "❌", "連線失敗", "", e.message);
+    }
+  }
+
+  // ---------- 顯示結果彈窗 ----------
+  function showResult(type, icon, status, name, detail) {
+    const card = document.getElementById("resultCard");
+    const statusEl = document.getElementById("resultStatus");
+    card.className = "result-card " + type;
+    document.getElementById("resultIcon").textContent = icon;
+    statusEl.className = "result-status " + type;
+    statusEl.textContent = status;
+    document.getElementById("resultName").textContent = name;
+    document.getElementById("resultDetail").textContent = detail;
+    document.getElementById("resultOverlay").style.display = "flex";
+  }
+
+  function closeResult() {
+    document.getElementById("resultOverlay").style.display = "none";
+    isProcessing = false;
+  }
+
+  // ---------- 掃描記錄 ----------
+  function addLog(name, type) {
+    const now = new Date();
+    const t = now.getHours().toString().padStart(2,"0") + ":" + now.getMinutes().toString().padStart(2,"0");
+    scanLog.unshift({ name, type, time: t });
+    if (scanLog.length > 6) scanLog.pop();
+
+    const list = document.getElementById("logList");
+    list.innerHTML = scanLog.map(l => `
+      <div class="log-item">
+        <div class="log-${l.type === 'ok' ? 'dot-ok' : 'log-dot-dup'}
+             ${l.type === 'ok' ? 'log-dot-ok' : 'log-dot-dup'}"></div>
+        <div class="log-name">${l.name}</div>
+        <div class="log-time">${l.time}</div>
+      </div>
+    `).join("");
+  }
+
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+    document.getElementById("scanHint").textContent = "⚠️ 請先設定 APPS_SCRIPT_URL";
+    document.getElementById("initMsg").style.display = "none";
+  } else {
+    init();
+  }
+</script>
+</body>
+</html>
