@@ -118,8 +118,8 @@
       background: #1e3a5f;
     }
     .result-item.done {
-      opacity: 0.5;
-      cursor: not-allowed;
+      opacity: 0.65;
+      border-color: #064e3b;
     }
     .result-name { font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }
     .result-meta { font-size: 0.82rem; color: #64748b; margin-top: 3px; }
@@ -413,13 +413,13 @@
     }
     container.innerHTML = matches.map(a => `
       <div class="result-item ${a.checkedIn ? 'done' : ''}"
-           onclick="${a.checkedIn ? '' : 'selectAttendee(' + a.rowIndex + ')'}">
+           onclick="selectAttendee(${a.rowIndex})">
         <div>
           <div class="result-name">${a.name} ${a.title}</div>
           <div class="result-meta">桌次：${a.table} 桌 ／ 序號：${a.seq} 號</div>
         </div>
         <div class="card-badge ${a.checkedIn ? 'badge-done' : 'badge-pending'}">
-          ${a.checkedIn ? '已報到' : '點擊報到'}
+          ${a.checkedIn ? '✓ 已報到' : '點擊報到'}
         </div>
       </div>
     `).join("");
@@ -434,7 +434,13 @@
   // ---------- 選擇賓客 → 顯示 QR ----------
   async function selectAttendee(rowIndex) {
     const a = attendees.find(x => x.rowIndex === rowIndex);
-    if (!a || a.checkedIn) return;
+    if (!a) return;
+
+    // 已報到：直接顯示個人資料，不開輪詢
+    if (a.checkedIn) {
+      showSuccess(a);
+      return;
+    }
     currentAttendee = a;
 
     document.getElementById("qrName").textContent = `${a.name} ${a.title}`;
